@@ -2,6 +2,8 @@
 #include <sys/time.h>
 #include <signal.h>
 #include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 #include <ucontext.h>
 
 #define TIME_QUANTUM_MS 500000 // Time quantum in microseconds
@@ -12,16 +14,19 @@ typedef uint my_pthread_t;
 /* Thread Status Enum */
 typedef enum threadStatus {
 	RUNNABLE,   // Thread can be run
-  SLEEP,      // Thread is currently asleep
-	FINISHED    // Thread has finished execution
+	SLEEP,      // Thread is currently asleep
+	FINISHED,   // Thread has finished execution
+	UNINITIALIZED
 } status_t;
 
 /*  Thread Contol Block */
 typedef struct threadControlBlock{
-  my_pthread_t tid;   // Thread ID
-  status_t status;    // Thread Status
-  ucontext_t context; // Ucontext
-  struct threadControlBlock* next;
+	my_pthread_t tid;   // Thread ID
+	status_t status;    // Thread Status
+	ucontext_t context; // Ucontext
+	struct threadControlBlock* next;
+	
+	my_pthread_t waitingThread;
 } my_pthread_tcb;
 
 

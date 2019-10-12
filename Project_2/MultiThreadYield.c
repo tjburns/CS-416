@@ -8,6 +8,7 @@ void thread_run(){
   int x;
   for(x = 0; x < 20; x++){
     printf("Thread %d Running\n", my_pthread_self());
+    //printf("%d\n", x);
     my_pthread_yield();
   }
   printf("Thread %d Finished\n", my_pthread_self());
