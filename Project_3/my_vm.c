@@ -1,5 +1,14 @@
 #include "my_vm.h"
 
+// global definitions used for this project
+    // probably would be in better form to have these as #DEFINEs
+    // and subsequent globals probably in the header file as well
+int num_physical_pages = MEMSIZE/PGSIZE;
+int num_virtual_pages = MAX_MEMSIZE/PGSIZE;
+static char * physical_pages_states;
+static char * virtual_pages_states;
+static char * physical_memory;
+
 /*
 Function responsible for allocating and setting your physical memory 
 */
@@ -7,11 +16,20 @@ void SetPhysicalMem() {
 
     //Allocate physical memory using mmap or malloc; this is the total size of
     //your memory you are simulating
+    physical_memory = (char*)malloc(MEMSIZE * sizeof(char));
 
-    
     //HINT: Also calculate the number of physical and virtual pages and allocate
     //virtual and physical bitmaps and initialize them
+    physical_pages_states = (char*)malloc(num_physical_pages * sizeof(char));
+    virtual_pages_states = (char*)malloc(num_virtual_pages * sizeof(char));
 
+    // initialize all values in page state arrays to 0
+    for (i = 0; i < num_physical_pages; i++) {
+        physical_pages_states[i] = 0;
+    }
+    for (i = 0 ; i < num_virtual_pages; i++) {
+        virtual_pages_states[i] = 0;
+    }
 }
 
 
@@ -37,13 +55,13 @@ as an argument, and sets a page table entry. This function will walk the page
 directory to see if there is an existing mapping for a virtual address. If the
 virtual address is not present, then a new entry will be added
 */
-int
-PageMap(pde_t *pgdir, void *va, void *pa)
+int PageMap(pde_t *pgdir, void *va, void *pa)
 {
 
     /*HINT: Similar to Translate(), find the page directory (1st level)
     and page table (2nd-level) indices. If no mapping exists, set the
     virtual to physical mapping */
+    
 
     return -1;
 }
@@ -54,6 +72,8 @@ PageMap(pde_t *pgdir, void *va, void *pa)
 void *get_next_avail(int num_pages) {
  
     //Use virtual address bitmap to find the next free page
+
+
 }
 
 
@@ -63,11 +83,15 @@ and used by the benchmark
 void *m_alloc(unsigned int num_bytes) {
 
     //HINT: If the physical memory is not yet initialized, then allocate and initialize.
+    if (physical_memory == NULL) {
+        SetPhysicalMem();
+    }
 
    /* HINT: If the page directory is not initialized, then initialize the
    page directory. Next, using get_next_avail(), check if there are free pages. If
    free pages are available, set the bitmaps and map a new page. Note, you will 
    have to mark which physical pages are used. */
+    
 
     return NULL;
 }
@@ -79,6 +103,8 @@ void a_free(void *va, int size) {
     //Free the page table entries starting from this virtual address (va)
     // Also mark the pages free in the bitmap
     //Only free if the memory from "va" to va+size is valid
+
+
 }
 
 
@@ -91,6 +117,7 @@ void PutVal(void *va, void *val, int size) {
        the contents of "val" to a physical page. NOTE: The "size" value can be larger
        than one page. Therefore, you may have to find multiple pages using Translate()
        function.*/
+
 
 }
 
