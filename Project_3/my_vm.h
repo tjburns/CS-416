@@ -2,6 +2,7 @@
 #define MY_VM_H_INCLUDED
 #include <stdbool.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 //Assume the address space is 32 bits, so the max memory size is 4GB
 //Page size is 4KB
@@ -11,7 +12,7 @@
 #define PGSIZE 4096
 
 // Maximum size of your memory
-#define MAX_MEMSIZE 4*1024*1024*1024
+#define MAX_MEMSIZE (unsigned long long)4*1024*1024*1024
 
 #define MEMSIZE 1024*1024*1024
 

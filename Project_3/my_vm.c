@@ -1,5 +1,15 @@
 #include "my_vm.h"
 
+/**  Overall Library Structure - as interpreted from project description and subsequent explanations
+ * 
+ * Page Directory - holds virtual addresses of pages
+ * |-> Page Table - holds addresses to physical tables
+ *     |-> Pages - can be assigned physical values
+ *         |-> up to 4096 bytes available per page for physical memory from previous page allocation
+ *             allocations under 4096 bytes are rounded up to a single page worth in this implementation
+ */
+
+
 // global definitions used for this project
     // probably would be in better form to have these as #DEFINEs
     // and subsequent globals probably in the header file as well
@@ -8,6 +18,9 @@ int num_virtual_pages = MAX_MEMSIZE/PGSIZE;
 static char * physical_pages_states;
 static char * virtual_pages_states;
 static char * physical_memory;
+
+static pde_t ** page_directory;
+//static pte_t * page_table;
 
 /*
 Function responsible for allocating and setting your physical memory 
@@ -24,12 +37,22 @@ void SetPhysicalMem() {
     virtual_pages_states = (char*)malloc(num_virtual_pages * sizeof(char));
 
     // initialize all values in page state arrays to 0
+    int i = 0;
     for (i = 0; i < num_physical_pages; i++) {
         physical_pages_states[i] = 0;
     }
     for (i = 0 ; i < num_virtual_pages; i++) {
         virtual_pages_states[i] = 0;
     }
+
+    page_directory = (pde_t**)malloc(1024 * sizeof(pde_t*));
+    for (i = 0; i < 1024; i++) {
+        page_directory[i] = (pde_t*)malloc(1024 * sizeof(pde_t));
+    }
+
+    //DEBUGGING
+    printf("Avaliable Physical Pages: %d\n", num_physical_pages);
+    printf("Available Virtual Pages: %d\n", num_virtual_pages);
 }
 
 
