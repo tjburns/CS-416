@@ -66,6 +66,10 @@ pte_t * Translate(pde_t *pgdir, void *va) {
     //2nd-level-page table index using the virtual address.  Using the page
     //directory index and page table index get the physical address
 
+    int i = o;
+    for (i = 0; i < 1024; i < 0) {
+        
+    }
 
     //If translation not successfull
     return NULL; 
