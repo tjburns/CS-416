@@ -214,11 +214,11 @@ void a_free(void *va, int size) {
     //Only free if the memory from "va" to va+size is valid
 
     pte_t * phys_addr = Translate(NULL, va);
-    printf("address to be freed: %x\n", phys_addr);
+    //printf("address to be freed: %x\n", phys_addr);
     int page_to_free = ((int)phys_addr - (unsigned int)physical_memory) / 4096;
     int num_pages_to_free = size / PGSIZE + 1;
     
-    printf("page to free: %d\n", page_to_free);
+    //printf("page to free: %d\n", page_to_free);
     int i, j = 0;
     for(i = page_to_free, j = 0; j < num_pages_to_free; i++,j++) {
         virtual_pages_states[page_to_free] = 0;
