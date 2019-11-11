@@ -23,11 +23,19 @@ static char * physical_memory;
 static pde_t * page_dir[1024][1024];
 //static pte_t * page_table;
 
-int next_page = -1;
+static int next_page = -1;
 
 int bitExtracted(int number, int k, int p) 
 { 
     return (((1 << k) - 1) & (number >> (p - 1))); 
+} 
+
+void bin(unsigned n) 
+{ 
+    if (n > 1) 
+        bin(n/2); 
+  
+    printf("%d", n % 2); 
 } 
 
 /*
@@ -125,17 +133,17 @@ void *get_next_avail(int num_pages) {
 
     int i = 0;
     for (i = 0; i < num_virtual_pages; i++) {
-        if (virtual_page_states[i] == 0) {
+        if (virtual_pages_states[i] == 0) {
             pageFree = 1;
-            nextPage = i;
-            return;
+            next_page = i;
+            return NULL;
         }
     }
 
     if (pageFree == 0) {
         printf("Error: No available pages.\n");
         // find out what appropriate behavior is here
-        System.exit(1);
+        exit(1);
     }
 }
 
@@ -148,6 +156,7 @@ void *m_alloc(unsigned int num_bytes) {
     //HINT: If the physical memory is not yet initialized, then allocate and initialize.
     if (physical_memory == NULL) {
         SetPhysicalMem();
+        //printf("MEMORY SET\n");
     }
 
    /* HINT: If the page directory is not initialized, then initialize the
@@ -158,32 +167,42 @@ void *m_alloc(unsigned int num_bytes) {
     // find the next available page to allocate
     get_next_avail(num_virtual_pages);
     // find number of pages needed to allocate this new memory block
-    int num_pages_needed = num_bytes / PGSIZE;
+    int num_pages_needed = num_bytes / PGSIZE + 1;
+    //printf("num pages needed: %d\n", num_pages_needed);
     if (next_page == -1) {
         printf("Error finding next page.\n");
-        System.exit(1);
+        exit(1);
     }
     // set page(s) to be in use
-    int i = 0;
-    for (i = next_page; i < num_pages_needed, i++) {
-        virtual_page_states[i] = 1;
+    int i,j = 0;
+    //printf("next page val: %d\n", next_page);
+    for (i = next_page,j=0; j < num_pages_needed; i++, j++) {
+        virtual_pages_states[i] = 1;
     }
+    /*
+    for(i = 0; i < 5; i++) {
+        printf("%d\n", virtual_pages_states[i]);
+    }
+    */
 
-    // set the addresses in the page directory and table
-    pte_t * phys_addr = &physical_memory[next_page];
-    uintptr_t addr = (uintptr_t)phys_addr;
+    // set the addresses in the page directory and table (could/should be done through PageMap and Translate)
+    int addr = (unsigned int)physical_memory + 4096*next_page;
+    //uintptr_t addr = (uintptr_t)phys_addr;
+    //printf("addr desired: %x\n", addr);
+    //printf("address in binary: ");
+    //bin(addr);
+    //printf("\n");
     int y = bitExtracted(addr, 10, 13);
     int x = bitExtracted(addr, 10, 23);
+    //printf("mapping to: %d, %d\n", x, y);
     if (page_dir[x][y] == NULL || page_dir[x][y] == 0) {
-        page_dir[x][y] = pa;
+        page_dir[x][y] = (unsigned long int *)addr;
     }
     else {
-        printf("Mapping exists.\n");
-        return 0;
+        printf("ERROR: Mapping exists. (potentially a prior mapping)\n");
     }
-    page_dir[x][y] = phys_addr;
 
-    return NULL;
+    return (void*)addr;
 }
 
 /* Responsible for releasing one or more memory pages using virtual address (va)
@@ -194,6 +213,21 @@ void a_free(void *va, int size) {
     // Also mark the pages free in the bitmap
     //Only free if the memory from "va" to va+size is valid
 
+    pte_t * phys_addr = Translate(NULL, va);
+    printf("address to be freed: %x\n", phys_addr);
+    int page_to_free = ((int)phys_addr - (unsigned int)physical_memory) / 4096;
+    int num_pages_to_free = size / PGSIZE + 1;
+    
+    printf("page to free: %d\n", page_to_free);
+    int i, j = 0;
+    for(i = page_to_free, j = 0; j < num_pages_to_free; i++,j++) {
+        virtual_pages_states[page_to_free] = 0;
+    }
+
+    int addr = (unsigned long int)phys_addr;
+    int y = bitExtracted(addr, 10, 13);
+    int x = bitExtracted(addr, 10, 23);
+    page_dir[x][y] = 0;
 
 }
 
@@ -208,7 +242,7 @@ void PutVal(void *va, void *val, int size) {
        than one page. Therefore, you may have to find multiple pages using Translate()
        function.*/
 
-    pte_t phys_addr = Translate(physical_memory, va);
+    pte_t * phys_addr = Translate(NULL, va);
     if (size < 4096) {
         memcpy(phys_addr, val, size);
     }
@@ -224,7 +258,7 @@ void GetVal(void *va, void *val, int size) {
     If you are implementing TLB,  always check first the presence of translation
     in TLB before proceeding forward */
 
-    pte_t phys_addr = Translate(physical_memory, va);
+    pte_t * phys_addr = Translate(NULL, va);
     if (size < 4096) {
         memcpy(val, phys_addr, size);
     }
@@ -246,15 +280,42 @@ void MatMult(void *mat1, void *mat2, int size, void *answer) {
     store the result to the "answer array"*/
 
     int i,j,k = 0;
-    int num1 = 0;
-    int num2 = 0;
+    int temp, num1, num2, x, y, z = 0;
+
+    int * m1 = (int*)malloc(size*size*sizeof(int));
+    int * m2 = (int*)malloc(size*size*sizeof(int));
+    int * ans = (int*)malloc(size*size*sizeof(int));
+    
+    // set values in temp int matricies we create for multiplication
+    for (i = 0; i < size; i++) {
+        for (j = 0; j < size; j++) {
+            num1 = (unsigned int)mat1 + ((i * size * sizeof(int))) + (j * sizeof(int));
+            num2 = (unsigned int)mat2 + ((i * size * sizeof(int))) + (j * sizeof(int));
+            GetVal((void *)num1, &x, sizeof(int));
+            GetVal( (void *)num2, &y, sizeof(int));
+            m1[size*i+j] = x;
+            m2[size*i+j] = y;
+        }
+    }
+
+    //perform matrix multiplication on the values collected
+    num1 = 0;
+    num2 = 0;
     for (i = 0; i < size; i++) {
         for (j = 0; j < size; j++) {
             for (k = 0; k < size; k++) {
-                getVal(mat1[i*size+k], &num1, sizeof(int));
-                getVal(mat2[k*size+j], &num2, sizeof(int));
-                answer[i*size+j] += num1*num2;
+                num1 = m1[i*size+k];
+                num2 = m2[k*size+j];
+                ans[i*size+j] += num1*num2;
             }
+        }
+    }
+
+    //store mat mult values back into the answer matrix address space
+    for (i = 0; i < size; i++) {
+        for (j = 0; j < size; j++) {
+            num1 = (unsigned int)answer + ((i * size * sizeof(int))) + (j * sizeof(int));
+            PutVal((void*)num1, (void*)&ans[i*size+j], sizeof(int));
         }
     }
 
