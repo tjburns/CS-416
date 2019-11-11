@@ -2,11 +2,12 @@
 
 /**  Overall Library Structure - as interpreted from project description and subsequent explanations
  * 
- * Page Directory - holds virtual addresses of pages
- * |-> Page Table - holds addresses to physical tables
- *     |-> Pages - can be assigned physical values
- *         |-> up to 4096 bytes available per page for physical memory from previous page allocation
- *             allocations under 4096 bytes are rounded up to a single page worth in this implementation
+ * Page Directory - holds virtual addresses of pages (10 bits: size is 2^10 = 1024)
+ * |-> Page Table - holds addresses to physical tables (10 bits: size is 2^10 = 1024)
+ *     |-> Pages - can be assigned physical values 
+ *         |-> up to 4096 bytes available per page for physical memory allocated in physical memory array
+ *              address stored here in page dir/table structure
+ *              allocations under 4096 bytes are rounded up to a single page worth in this implementation
  */
 
 
@@ -19,8 +20,15 @@ static char * physical_pages_states;
 static char * virtual_pages_states;
 static char * physical_memory;
 
-static pde_t ** page_directory;
+static pde_t * page_dir[1024][1024];
 //static pte_t * page_table;
+
+int next_page = -1;
+
+int bitExtracted(int number, int k, int p) 
+{ 
+    return (((1 << k) - 1) & (number >> (p - 1))); 
+} 
 
 /*
 Function responsible for allocating and setting your physical memory 
@@ -45,14 +53,15 @@ void SetPhysicalMem() {
         virtual_pages_states[i] = 0;
     }
 
-    page_directory = (pde_t**)malloc(1024 * sizeof(pde_t*));
-    for (i = 0; i < 1024; i++) {
-        page_directory[i] = (pde_t*)malloc(1024 * sizeof(pde_t));
-    }
+    // Page directory holds page table entries
+        // page table entries hold addresses of physical_memory allocations
+    //page_dir = (pde_t*)malloc(1024 * sizeof(pde_t));
+    //page_table = (pde_t*)malloc(1024*1024 * sizeof(pte_t));
+    
 
     //DEBUGGING
-    printf("Avaliable Physical Pages: %d\n", num_physical_pages);
-    printf("Available Virtual Pages: %d\n", num_virtual_pages);
+    //printf("Avaliable Physical Pages: %d\n", num_physical_pages);
+    //printf("Available Virtual Pages: %d\n", num_virtual_pages);
 }
 
 
@@ -66,10 +75,14 @@ pte_t * Translate(pde_t *pgdir, void *va) {
     //2nd-level-page table index using the virtual address.  Using the page
     //directory index and page table index get the physical address
 
-    int i = o;
-    for (i = 0; i < 1024; i < 0) {
-        
-    }
+    pte_t* retVal = NULL;
+
+    uintptr_t addr = (uintptr_t)va;
+    int y = bitExtracted(addr, 10, 13);
+    int x = bitExtracted(addr, 10, 23);
+    retVal = page_dir[x][y];
+
+    return retVal;
 
     //If translation not successfull
     return NULL; 
@@ -82,13 +95,20 @@ as an argument, and sets a page table entry. This function will walk the page
 directory to see if there is an existing mapping for a virtual address. If the
 virtual address is not present, then a new entry will be added
 */
-int PageMap(pde_t *pgdir, void *va, void *pa)
-{
-
+int PageMap(pde_t *pgdir, void *va, void *pa){
     /*HINT: Similar to Translate(), find the page directory (1st level)
     and page table (2nd-level) indices. If no mapping exists, set the
     virtual to physical mapping */
     
+    uintptr_t x = (uintptr_t)pgdir;
+    uintptr_t y = (uintptr_t)va;
+    if (page_dir[x][y] == NULL || page_dir[x][y] == 0) {
+        page_dir[x][y] = pa;
+    }
+    else {
+        printf("Mapping exists.\n");
+        return 0;
+    }
 
     return -1;
 }
@@ -100,7 +120,23 @@ void *get_next_avail(int num_pages) {
  
     //Use virtual address bitmap to find the next free page
 
+    int pageFree = 0;
+    next_page = -1;
 
+    int i = 0;
+    for (i = 0; i < num_virtual_pages; i++) {
+        if (virtual_page_states[i] == 0) {
+            pageFree = 1;
+            nextPage = i;
+            return;
+        }
+    }
+
+    if (pageFree == 0) {
+        printf("Error: No available pages.\n");
+        // find out what appropriate behavior is here
+        System.exit(1);
+    }
 }
 
 
@@ -119,6 +155,33 @@ void *m_alloc(unsigned int num_bytes) {
    free pages are available, set the bitmaps and map a new page. Note, you will 
    have to mark which physical pages are used. */
     
+    // find the next available page to allocate
+    get_next_avail(num_virtual_pages);
+    // find number of pages needed to allocate this new memory block
+    int num_pages_needed = num_bytes / PGSIZE;
+    if (next_page == -1) {
+        printf("Error finding next page.\n");
+        System.exit(1);
+    }
+    // set page(s) to be in use
+    int i = 0;
+    for (i = next_page; i < num_pages_needed, i++) {
+        virtual_page_states[i] = 1;
+    }
+
+    // set the addresses in the page directory and table
+    pte_t * phys_addr = &physical_memory[next_page];
+    uintptr_t addr = (uintptr_t)phys_addr;
+    int y = bitExtracted(addr, 10, 13);
+    int x = bitExtracted(addr, 10, 23);
+    if (page_dir[x][y] == NULL || page_dir[x][y] == 0) {
+        page_dir[x][y] = pa;
+    }
+    else {
+        printf("Mapping exists.\n");
+        return 0;
+    }
+    page_dir[x][y] = phys_addr;
 
     return NULL;
 }
@@ -145,6 +208,10 @@ void PutVal(void *va, void *val, int size) {
        than one page. Therefore, you may have to find multiple pages using Translate()
        function.*/
 
+    pte_t phys_addr = Translate(physical_memory, va);
+    if (size < 4096) {
+        memcpy(phys_addr, val, size);
+    }
 
 }
 
@@ -157,7 +224,10 @@ void GetVal(void *va, void *val, int size) {
     If you are implementing TLB,  always check first the presence of translation
     in TLB before proceeding forward */
 
-
+    pte_t phys_addr = Translate(physical_memory, va);
+    if (size < 4096) {
+        memcpy(val, phys_addr, size);
+    }
 }
 
 
@@ -175,5 +245,18 @@ void MatMult(void *mat1, void *mat2, int size, void *answer) {
     getting the values from two matrices, you will perform multiplication and 
     store the result to the "answer array"*/
 
-       
+    int i,j,k = 0;
+    int num1 = 0;
+    int num2 = 0;
+    for (i = 0; i < size; i++) {
+        for (j = 0; j < size; j++) {
+            for (k = 0; k < size; k++) {
+                getVal(mat1[i*size+k], &num1, sizeof(int));
+                getVal(mat2[k*size+j], &num2, sizeof(int));
+                answer[i*size+j] += num1*num2;
+            }
+        }
+    }
+
+    return;
 }
