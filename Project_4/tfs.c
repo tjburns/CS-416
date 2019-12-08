@@ -29,6 +29,9 @@
 char diskfile_path[PATH_MAX];
 
 // Declare your in-memory data structures here
+struct superblock super;
+bitmap_t inode_bitmap;
+bitmap_t datablock_bitmap;
 
 /* 
  * Get available inode number from bitmap
@@ -144,15 +147,34 @@ int get_node_by_path(const char *path, uint16_t ino, struct inode *inode) {
 int tfs_mkfs() {
 
 	// Call dev_init() to initialize (Create) Diskfile
+	dev_init(diskfile_path);
 
 	// write superblock information
+	//struct superblock super; --- superblock here shouldn't have to be malloc()-ed
+	super.magic_num = MAGIC_NUM;
+	super.max_inum = MAX_INUM;
+	super.max_dnum = MAX_INUM;
+	super.i_bitmap_blk = 1;
+	super.d_bitmap_blk = 2;
+	super.i_start_blk = 3; 
+	super.d_start_blk = 3+(INODE_SIZE*MAX_INUM / BLOCK_SIZE); //should be 3+64
+	bio_write(0, &super)
 
 	// initialize inode bitmap
+	inode_bitmap = malloc(MAX_INUM/8);
+	bio_write(super.i_bitmap_blk, inode_bitmap);
+	/* should already be initialized to 0 based on properties of malloc
+	int i;
+	for (i = 0; i < 128; i++) {
+		set_bitmap(inode_bitmap, 0);
+	} */
 
 	// initialize data block bitmap
+	datablock_bitmap = malloc(MAX_DNUM/8);
+	bio_write(super.d_bitmap_blk, datablock_bitmap);
 
 	// update bitmap information for root directory
-
+	
 	// update inode for root directory
 
 	return 0;
@@ -165,9 +187,22 @@ int tfs_mkfs() {
 static void *tfs_init(struct fuse_conn_info *conn) {
 
 	// Step 1a: If disk file is not found, call mkfs
-
-  // Step 1b: If disk file is found, just initialize in-memory data structures
-  // and read superblock from disk
+	if (dev_open(diskfile_path) != 0) {
+		tfs_mkfs();
+	}
+	else {
+		bio_read(0, &super);
+		if (temp.magic_num != MAGIC_NUM) {
+			tfs_mkfs();
+		}
+		else {
+			// Step 1b: If disk file is found, just initialize in-memory data structures
+  			// and read superblock from disk
+			bio_read(0, &super); // redundant
+			bio_read(1, inode_bitmap);
+			bio_read(2, datablock_bitmap);
+		}
+	}
 
 	return NULL;
 }
@@ -175,9 +210,11 @@ static void *tfs_init(struct fuse_conn_info *conn) {
 static void tfs_destroy(void *userdata) {
 
 	// Step 1: De-allocate in-memory data structures
-
+	//superblock is not malloc()-ed as of now
+	free(inode_bitmap); // TODO check if this segfaults
+	free(datablock_bitmap);
 	// Step 2: Close diskfile
-
+	dev_close();
 }
 
 static int tfs_getattr(const char *path, struct stat *stbuf) {
@@ -375,6 +412,8 @@ int main(int argc, char *argv[]) {
 
 	getcwd(diskfile_path, PATH_MAX);
 	strcat(diskfile_path, "/DISKFILE");
+
+	dev_init(diskfile_path);
 
 	fuse_stat = fuse_main(argc, argv, &tfs_ope, NULL);
 
