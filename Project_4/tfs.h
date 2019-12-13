@@ -19,6 +19,10 @@
 #define MAGIC_NUM 0x5C3A
 #define MAX_INUM 1024
 #define MAX_DNUM 16384
+#define INODE_SIZE 256
+
+// Total Blocks = 8192 (DISK_SIZE / BLOCK_SIZE)
+// superblock (0) | inode_bitmap (1) | datablock_bitmap (2) | inode block (3-67) | datablock (68+)
 
 
 struct superblock {
@@ -31,6 +35,8 @@ struct superblock {
 	uint32_t	d_start_blk;		/* start address of data block region */
 };
 
+// size of inode struct: 256 bytes
+// total inode blocks: 64 (MAX_INUM*INODE_SIZE / BLOCKSIZE)
 struct inode {
 	uint16_t	ino;				/* inode number */
 	uint16_t	valid;				/* validity of the inode */

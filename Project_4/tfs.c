@@ -33,18 +33,29 @@ struct superblock super;
 bitmap_t inode_bitmap;
 bitmap_t datablock_bitmap;
 
+struct inode inodes[1024];
+// datablock declaration
+
 /* 
  * Get available inode number from bitmap
  */
 int get_avail_ino() {
 
 	// Step 1: Read inode bitmap from disk
-	
+	bio_read(1, &inode_bitmap); // might have to open disk before this read
 	// Step 2: Traverse inode bitmap to find an available slot
-
+	int i;
+	int inodeIndex = -1;
+	for (i = 0; i < MAX_INUM; i++) {
+		int currInode = get_bitmap(inode_bitmap, i);
+		if (currInode == 0) {
+			inodeIndex = i;
+			break;
+		}
+	}
 	// Step 3: Update inode bitmap and write to disk 
-
-	return 0;
+	// TODO set inode to inuse?
+	return inodeIndex;
 }
 
 /* 
@@ -53,12 +64,20 @@ int get_avail_ino() {
 int get_avail_blkno() {
 
 	// Step 1: Read data block bitmap from disk
-	
+	bio_read(2, &datablock_bitmap);
 	// Step 2: Traverse data block bitmap to find an available slot
-
+	int i;
+	int datablockIndex = -1;
+	for (i = 0; i < MAX_DNUM; i++) {
+		int currDatablock = get_bitmap(datablock_bitmap, i);
+		if (currDatablock == 0) {
+			datablockIndex = i;
+			break;
+		}
+	}
 	// Step 3: Update data block bitmap and write to disk 
-
-	return 0;
+	// TODO set datablock to inuse?
+	return datablockIndex;
 }
 
 /* 
@@ -67,8 +86,15 @@ int get_avail_blkno() {
 int readi(uint16_t ino, struct inode *inode) {
 
   // Step 1: Get the inode's on-disk block number
-
+	int blockNum = -1;
+	int i = 0;
+	for ( ; i < MAX_INUM; i++) {
+		if (inodes[i].ino == ino) {
+			blockNum = i / 16 + 3; // retrieves the block number of the given inode
+		}
+	}
   // Step 2: Get offset of the inode in the inode on-disk block
+	// TODO you are here you cute ass bitch :)
 
   // Step 3: Read the block from disk and then copy into inode structure
 
@@ -78,7 +104,7 @@ int readi(uint16_t ino, struct inode *inode) {
 int writei(uint16_t ino, struct inode *inode) {
 
 	// Step 1: Get the block number where this inode resides on disk
-	
+
 	// Step 2: Get the offset in the block where this inode resides on disk
 
 	// Step 3: Write inode to disk 
@@ -154,10 +180,10 @@ int tfs_mkfs() {
 	super.magic_num = MAGIC_NUM;
 	super.max_inum = MAX_INUM;
 	super.max_dnum = MAX_INUM;
-	super.i_bitmap_blk = 1;
+	super.i_bitmap_blk = 1; // TODO find addresses somehow
 	super.d_bitmap_blk = 2;
 	super.i_start_blk = 3; 
-	super.d_start_blk = 3+(INODE_SIZE*MAX_INUM / BLOCK_SIZE); //should be 3+64
+	super.d_start_blk = 68; //should be (3+64)+1
 	bio_write(0, &super)
 
 	// initialize inode bitmap
@@ -174,7 +200,7 @@ int tfs_mkfs() {
 	bio_write(super.d_bitmap_blk, datablock_bitmap);
 
 	// update bitmap information for root directory
-	
+	//TODO figure out what needs to be done here
 	// update inode for root directory
 
 	return 0;
@@ -201,6 +227,8 @@ static void *tfs_init(struct fuse_conn_info *conn) {
 			bio_read(0, &super); // redundant
 			bio_read(1, inode_bitmap);
 			bio_read(2, datablock_bitmap);
+			bio_read(3, inodes);
+			// read datablock?
 		}
 	}
 
@@ -412,8 +440,6 @@ int main(int argc, char *argv[]) {
 
 	getcwd(diskfile_path, PATH_MAX);
 	strcat(diskfile_path, "/DISKFILE");
-
-	dev_init(diskfile_path);
 
 	fuse_stat = fuse_main(argc, argv, &tfs_ope, NULL);
 
