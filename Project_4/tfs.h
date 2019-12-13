@@ -22,7 +22,8 @@
 #define INODE_SIZE 256
 
 // Total Blocks = 8192 (DISK_SIZE / BLOCK_SIZE)
-// superblock (0) | inode_bitmap (1) | datablock_bitmap (2) | inode block (3-67) | datablock (68+)
+// superblock (0) | inode_bitmap (1) | datablock_bitmap (2) | 
+// inode block (3-67) (16 inodes per block * 64 blocks = 1024 inodes) | datablock (68+)
 
 
 struct superblock {
@@ -48,6 +49,7 @@ struct inode {
 	struct stat	vstat;				/* inode stat */
 };
 
+// size of a dirent struct: 256 bytes
 struct dirent {
 	uint16_t ino;					/* inode number of the directory entry */
 	uint16_t valid;					/* validity of the directory entry */
